@@ -69,8 +69,9 @@ class AudioLinkPlayer(commands.Cog, VoiceChannelCog, metaclass=VoiceMeta):
 
     # Commands
     @commands.command(name="play")
-    async def play(self, ctx: commands.Context, url: str):
-        self.logger.info("user %s requested to play %s", ctx.author.name, url)
+    async def play(self, ctx: commands.Context, *url_input):
+        self.logger.info("user %s requested to play %s", ctx.author.name, url_input)
+        url = url_input[0]
         channel = ctx.author.voice.channel
         player_state: PlayerChannelState
         channels_info = get_channels()
@@ -92,7 +93,11 @@ class AudioLinkPlayer(commands.Cog, VoiceChannelCog, metaclass=VoiceMeta):
 
         source = await get_source(url)
         player_state.playing = url
-        await self._play(state, source)
+        task = asyncio.create_task(self._play(state, source))
+        asyncio.sleep(0)
+        if len(url_input) > 1:
+            await asyncio.gather(*[self.queue(ctx, url) for url in url_input[1:]])
+        await task
 
     @commands.command(name="queue")
     async def queue(self, ctx: commands.Context, url: str):
@@ -162,7 +167,7 @@ async def get_source(url: str):
 
 
 def search_youtube(query):
-    with YoutubeDL({"format": 'm4a/bestaudio/best', "noplaylist": "True"}) as ydl:
+    with YoutubeDL({"format": "m4a/bestaudio/best", "noplaylist": "True"}) as ydl:
         try:
             requests.get(query, timeout=30)
         except requests.exceptions.HTTPError:
